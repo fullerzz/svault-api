@@ -2,14 +2,33 @@ from typing import Annotated, Any
 
 from icecream import ic
 from litestar import Litestar, MediaType, get, post
+from litestar.contrib.sqlalchemy.base import UUIDAuditBase, UUIDBase
+from litestar.contrib.sqlalchemy.plugins import (
+    AsyncSessionConfig,
+    SQLAlchemyAsyncConfig,
+    SQLAlchemyInitPlugin,
+)
 from litestar.datastructures import UploadFile
 from litestar.enums import RequestEncodingType
 from litestar.params import Body
+from sqlalchemy import ForeignKey, select
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from svault_api.models import S3Object, UserUploadFile
 from svault_api.s3_client import S3Client
 
 s3_client = S3Client()
+session_config = AsyncSessionConfig(expire_on_commit=False)
+sqlalchemy_config = SQLAlchemyAsyncConfig(
+    connection_string="sqlite+aiosqlite:///test.sqlite", session_config=session_config
+)  # Create 'async_session' dependency.
+sqlalchemy_plugin = SQLAlchemyInitPlugin(config=sqlalchemy_config)
+
+
+async def on_startup() -> None:
+    """Initializes the database."""
+    async with sqlalchemy_config.get_engine().begin() as conn:
+        await conn.run_sync(UUIDBase.metadata.create_all)
 
 
 @get("/")
@@ -33,4 +52,8 @@ async def upload_file(
     return {"result": "File uploaded successfully", "s3_object": s3obj.model_dump()}
 
 
-app = Litestar([index, get_media, upload_file])
+app = Litestar(
+    route_handlers=[index, get_media, upload_file],
+    on_startup=[on_startup],
+    plugins=[SQLAlchemyInitPlugin(config=sqlalchemy_config)],
+)
