@@ -1,20 +1,17 @@
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
 
-from litestar.contrib.sqlalchemy.base import UUIDAuditBase, UUIDBase
+from advanced_alchemy import SQLAlchemyAsyncRepository
+from litestar.contrib.sqlalchemy.base import UUIDBase
 from litestar.contrib.sqlalchemy.plugins import (
     AsyncSessionConfig,
     SQLAlchemyAsyncConfig,
     SQLAlchemyInitPlugin,
 )
-from pydantic import UUID4, BaseModel, Field
-from sqlalchemy import ForeignKey, select
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pydantic import UUID4, BaseModel, ConfigDict, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Mapped
 from zoneinfo import ZoneInfo
-
-if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 UTC_TZ = ZoneInfo("UTC")
 
@@ -33,12 +30,31 @@ class UserUploadFile(BaseModel):
 
 
 ## SQLAlchemy Models
-class UserFile(UUIDBase):
+class UserFileModel(UUIDBase):
     filename: Mapped[str]
     bucket_name: Mapped[str]
     key: Mapped[str]
     uploaded_timestamp: Mapped[datetime]
     created_timestamp: Mapped[datetime]
+
+
+class UserFile(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID | None  # noqa: A003
+    filename: str
+    bucket_name: str
+    key: str
+    uploaded_timestamp: datetime
+    created_timestamp: datetime
+
+
+class UserFileRespository(SQLAlchemyAsyncRepository[UserFileModel]):
+    model_type = UserFileModel
+
+
+async def provide_user_file_repo(db_session: AsyncSession) -> UserFileRespository:
+    return UserFileRespository(session=db_session)
 
 
 session_config = AsyncSessionConfig(expire_on_commit=False)
