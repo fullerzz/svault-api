@@ -1,9 +1,7 @@
-import logging
-import sys
-import traceback
 from pathlib import Path
 
 import aioboto3
+import picologging as logging
 from icecream import ic
 
 from svault_api.models import S3Object, UserUploadFile
@@ -16,7 +14,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 async def write_tmp_file(user_file: UserUploadFile) -> str:
     path: Path = UPLOAD_DIR / user_file.filename
-    ic(path)
+    logger.info(f"Writing tmp file to {path!s}")
     with path.open(mode="wb") as f:
         f.write(user_file.file_content)
     return f"{path!s}"
@@ -25,6 +23,7 @@ async def write_tmp_file(user_file: UserUploadFile) -> str:
 async def del_tmp_file(tmp_file_path: str) -> None:
     del_path: Path = Path(tmp_file_path)
     del_path.unlink()
+    logger.info("Deleted tmp file")
 
 
 class S3Client:
@@ -32,6 +31,7 @@ class S3Client:
         self.session = aioboto3.Session()
 
     async def upload(self, file: UserUploadFile) -> S3Object:
+        logger.info("Uploading file to S3")
         async with self.session.client("s3", region_name=REGION) as client:
             tmp_file_path: str = await write_tmp_file(file)
             key: str = file.filename
@@ -42,8 +42,7 @@ class S3Client:
                     key,
                 )
             except Exception:  # TODO: Better exception handling
-                _ex_type, _ex, tb = sys.exc_info()
-                traceback.print_tb(tb)
+                logger.exception("Error uploading file to S3")
             finally:
                 await del_tmp_file(tmp_file_path)
         return S3Object(
@@ -66,8 +65,6 @@ class S3Client:
                                 key=content["Key"],
                             )
                         )
-            except Exception as ex:  # TODO: Better exception handling
-                _ex_type, _ex, tb = sys.exc_info()
-                traceback.print_tb(tb)
-                print(repr(ex))
+            except Exception:  # TODO: Better exception handling
+                logger.exception("Error getting objects from S3")
         return objects

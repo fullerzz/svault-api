@@ -1,6 +1,6 @@
-import logging
 from typing import Annotated, Any
 
+import picologging as logging
 from icecream import ic
 from litestar import Litestar, MediaType, get, post
 from litestar.contrib.sqlalchemy.base import UUIDBase
@@ -13,7 +13,6 @@ from litestar.datastructures import UploadFile
 from litestar.di import Provide
 from litestar.enums import RequestEncodingType
 from litestar.params import Body
-from rich.logging import RichHandler
 
 from svault_api.models import (
     S3Object,
@@ -25,12 +24,7 @@ from svault_api.models import (
 )
 from svault_api.s3_client import S3Client
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[RichHandler(rich_tracebacks=True)],
-)
-logger: logging.Logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 s3_client = S3Client()
 session_config = AsyncSessionConfig(expire_on_commit=False)
@@ -65,24 +59,22 @@ async def upload_file(
     file_content: bytes = await data.read()
     user_upload_file = UserUploadFile(filename=data.filename, file_content=file_content)
 
-    s3obj = await s3_client.upload(user_upload_file)
-    ic(s3obj)
+    s3_obj = await s3_client.upload(user_upload_file)
 
-    obj: UserFileModel = await user_file_repo.add(
+    user_file: UserFileModel = await user_file_repo.add(
         UserFileModel(
             filename=user_upload_file.filename,
-            bucket_name=s3obj.bucket_name,
-            key=s3obj.key,
-            uploaded_timestamp=s3obj.uploaded_timestamp,
-            created_timestamp=s3obj.uploaded_timestamp,
+            bucket_name=s3_obj.bucket_name,
+            key=s3_obj.key,
+            uploaded_timestamp=s3_obj.uploaded_timestamp,
+            created_timestamp=s3_obj.uploaded_timestamp,
         )
     )
-    ic(obj)
 
     await user_file_repo.session.commit()
-    ic(UserFile.model_validate(obj))
+    ic(UserFile.model_validate(user_file))
 
-    return {"result": "File uploaded successfully", "s3_object": s3obj.model_dump()}
+    return {"result": "File uploaded successfully", "user_file": UserFile.model_validate(user_file)}
 
 
 app = Litestar(

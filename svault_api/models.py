@@ -1,7 +1,7 @@
-import logging
 import uuid
 from datetime import datetime
 
+import picologging as logging
 from advanced_alchemy import SQLAlchemyAsyncRepository
 from litestar.contrib.sqlalchemy.base import UUIDBase
 from litestar.contrib.sqlalchemy.plugins import (
