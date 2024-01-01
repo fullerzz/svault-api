@@ -1,8 +1,7 @@
+import logging
 from typing import Annotated, Any
 
-import picologging as logging
-from icecream import ic
-from litestar import Litestar, MediaType, get, post
+from litestar import Litestar, MediaType, Request, Response, get, post
 from litestar.contrib.sqlalchemy.base import UUIDBase
 from litestar.contrib.sqlalchemy.plugins import (
     AsyncSessionConfig,
@@ -12,6 +11,8 @@ from litestar.contrib.sqlalchemy.plugins import (
 from litestar.datastructures import UploadFile
 from litestar.di import Provide
 from litestar.enums import RequestEncodingType
+from litestar.exceptions import HTTPException
+from litestar.logging import LoggingConfig
 from litestar.params import Body
 
 from svault_api.models import (
@@ -24,7 +25,11 @@ from svault_api.models import (
 )
 from svault_api.s3_client import S3Client
 
-logger = logging.getLogger(__name__)
+logging_config = LoggingConfig(
+    root={"level": logging.getLevelName(logging.INFO), "handlers": ["console"]},
+    formatters={"standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}},
+)
+logger = logging_config.configure()()
 
 s3_client = S3Client()
 session_config = AsyncSessionConfig(expire_on_commit=False)
@@ -32,6 +37,18 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
     connection_string="sqlite+aiosqlite:///test.sqlite", session_config=session_config
 )  # Create 'async_session' dependency.
 sqlalchemy_plugin = SQLAlchemyInitPlugin(config=sqlalchemy_config)
+
+
+def app_exception_handler(request: Request, exc: HTTPException) -> Response:
+    return Response(
+        content={
+            "error": "server error",
+            "path": request.url.path,
+            "detail": exc.detail,
+            "status_code": exc.status_code,
+        },
+        status_code=500,
+    )
 
 
 async def on_startup() -> None:
@@ -45,9 +62,29 @@ async def index() -> str:
     return "Hello, world!"
 
 
-@get("/media", media_type=MediaType.JSON)
-async def get_media(user_file_repo: UserFileRespository) -> list[S3Object]:
+@get("/media/s3", media_type=MediaType.JSON)
+async def get_media_s3(user_file_repo: UserFileRespository) -> list[S3Object]:
     return await s3_client.get_all_objects()
+
+
+@get("/media")
+async def get_media(user_file_repo: UserFileRespository) -> list[UserFile]:
+    logger.info("Getting files from database")
+    try:
+        rows: list[UserFileModel] = await user_file_repo.list()
+        files: list[UserFile] = [UserFile.model_validate(row) for row in rows]
+    except Exception as ex:
+        logger.exception("Error getting files from database")
+        raise HTTPException(detail=repr(ex)) from ex
+    return files
+
+
+@get("/media/{file_id: str}")
+async def get_media_by_id(user_file_repo: UserFileRespository, file_id: str) -> UserFile:
+    logger.info(f"Querying database for file_id: {file_id}")
+    file_model: UserFileModel = await user_file_repo.get(file_id)
+    file: UserFile = UserFile.model_validate(file_model)
+    return file  # TODO: Return 404 if not found
 
 
 @post(path="/media/upload", media_type=MediaType.JSON)
@@ -72,14 +109,16 @@ async def upload_file(
     )
 
     await user_file_repo.session.commit()
-    ic(UserFile.model_validate(user_file))
+    logger.info(f"{UserFile.model_validate(user_file)!s}")
 
     return {"result": "File uploaded successfully", "user_file": UserFile.model_validate(user_file)}
 
 
 app = Litestar(
-    route_handlers=[index, get_media, upload_file],
+    route_handlers=[index, get_media, get_media_by_id, upload_file],
     on_startup=[on_startup],
     plugins=[SQLAlchemyInitPlugin(config=sqlalchemy_config)],
     dependencies={"user_file_repo": Provide(provide_user_file_repo)},
+    logging_config=logging_config,
+    exception_handlers={HTTPException: app_exception_handler},
 )

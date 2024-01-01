@@ -1,15 +1,21 @@
+import logging
 from pathlib import Path
 
 import aioboto3
-import picologging as logging
 from icecream import ic
+from litestar.exceptions import HTTPException
+from litestar.logging import LoggingConfig
 
 from svault_api.models import S3Object, UserUploadFile
 
 BUCKET_NAME: str = "fullerzz-media"  # TODO: Load from env
 REGION: str = "us-west-1"
 UPLOAD_DIR: Path = Path.cwd() / "svault_api/uploads"
-logger: logging.Logger = logging.getLogger(__name__)
+logging_config = LoggingConfig(
+    root={"level": logging.getLevelName(logging.INFO), "handlers": ["console"]},
+    formatters={"standard": {"format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"}},
+)
+logger = logging_config.configure()()
 
 
 async def write_tmp_file(user_file: UserUploadFile) -> str:
@@ -31,7 +37,7 @@ class S3Client:
         self.session = aioboto3.Session()
 
     async def upload(self, file: UserUploadFile) -> S3Object:
-        logger.info("Uploading file to S3")
+        logger.info(f"Uploading file to S3: {file.filename}")
         async with self.session.client("s3", region_name=REGION) as client:
             tmp_file_path: str = await write_tmp_file(file)
             key: str = file.filename
@@ -41,8 +47,10 @@ class S3Client:
                     BUCKET_NAME,
                     key,
                 )
-            except Exception:  # TODO: Better exception handling
-                logger.exception("Error uploading file to S3")
+                logger.info("File successfully uploaded to S3")
+            except Exception as ex:
+                logger.exception(f"Error uploading file to S3: {file.filename}")
+                raise HTTPException(detail=f"Error uploading file to S3 - {ex!r}") from ex
             finally:
                 await del_tmp_file(tmp_file_path)
         return S3Object(
@@ -65,6 +73,7 @@ class S3Client:
                                 key=content["Key"],
                             )
                         )
-            except Exception:  # TODO: Better exception handling
+            except Exception as ex:
                 logger.exception("Error getting objects from S3")
+                raise HTTPException(detail=f"Error getting objects from S3 - {ex!r}") from ex
         return objects

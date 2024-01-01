@@ -12,7 +12,6 @@ pydantic = "^2.5.3"
 tzdata = "^2023.4"
 aioboto3 = "^12.1.0"
 aiosqlite = "^0.19.0"
-picologging = "^0.9.3"
 
 
 [tool.poetry.group.dev.dependencies]

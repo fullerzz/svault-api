@@ -1,14 +1,9 @@
+import logging
 import uuid
 from datetime import datetime
 
-import picologging as logging
 from advanced_alchemy import SQLAlchemyAsyncRepository
 from litestar.contrib.sqlalchemy.base import UUIDBase
-from litestar.contrib.sqlalchemy.plugins import (
-    AsyncSessionConfig,
-    SQLAlchemyAsyncConfig,
-    SQLAlchemyInitPlugin,
-)
 from pydantic import UUID4, BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped
@@ -57,16 +52,3 @@ class UserFileRespository(SQLAlchemyAsyncRepository[UserFileModel]):
 
 async def provide_user_file_repo(db_session: AsyncSession) -> UserFileRespository:
     return UserFileRespository(session=db_session)
-
-
-session_config = AsyncSessionConfig(expire_on_commit=False)
-sqlalchemy_config = SQLAlchemyAsyncConfig(
-    connection_string="sqlite+aiosqlite:///test.sqlite", session_config=session_config
-)  # Create 'async_session' dependency.
-sqlalchemy_plugin = SQLAlchemyInitPlugin(config=sqlalchemy_config)
-
-
-async def on_startup() -> None:
-    """Initializes the database."""
-    async with sqlalchemy_config.get_engine().begin() as conn:
-        await conn.run_sync(UUIDBase.metadata.create_all)
