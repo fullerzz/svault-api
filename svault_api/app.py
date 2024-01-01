@@ -1,3 +1,4 @@
+import logging
 from typing import Annotated, Any
 
 from icecream import ic
@@ -12,6 +13,7 @@ from litestar.datastructures import UploadFile
 from litestar.di import Provide
 from litestar.enums import RequestEncodingType
 from litestar.params import Body
+from rich.logging import RichHandler
 
 from svault_api.models import (
     S3Object,
@@ -22,6 +24,13 @@ from svault_api.models import (
     provide_user_file_repo,
 )
 from svault_api.s3_client import S3Client
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[RichHandler(rich_tracebacks=True)],
+)
+logger: logging.Logger = logging.getLogger(__name__)
 
 s3_client = S3Client()
 session_config = AsyncSessionConfig(expire_on_commit=False)
@@ -52,6 +61,7 @@ async def upload_file(
     user_file_repo: UserFileRespository,
     data: Annotated[UploadFile, Body(media_type=RequestEncodingType.MULTI_PART)],
 ) -> dict[str, Any]:
+    logger.info(f"Received file: {data.filename}")
     file_content: bytes = await data.read()
     user_upload_file = UserUploadFile(filename=data.filename, file_content=file_content)
 

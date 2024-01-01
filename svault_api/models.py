@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime
 
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Mapped
 from zoneinfo import ZoneInfo
 
 UTC_TZ = ZoneInfo("UTC")
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 class S3Object(BaseModel):

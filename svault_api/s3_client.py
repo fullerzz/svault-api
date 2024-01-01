@@ -1,3 +1,4 @@
+import logging
 import sys
 import traceback
 from pathlib import Path
@@ -10,6 +11,7 @@ from svault_api.models import S3Object, UserUploadFile
 BUCKET_NAME: str = "fullerzz-media"  # TODO: Load from env
 REGION: str = "us-west-1"
 UPLOAD_DIR: Path = Path.cwd() / "svault_api/uploads"
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 async def write_tmp_file(user_file: UserUploadFile) -> str:
