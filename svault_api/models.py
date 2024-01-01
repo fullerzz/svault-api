@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime
 
@@ -6,6 +7,7 @@ from pydantic import UUID4, BaseModel, ConfigDict, Field
 from zoneinfo import ZoneInfo
 
 UTC_TZ = ZoneInfo("UTC")
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 class S3Object(BaseModel):
