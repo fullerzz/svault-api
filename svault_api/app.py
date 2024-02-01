@@ -39,7 +39,7 @@ sqlalchemy_config = SQLAlchemyAsyncConfig(
 sqlalchemy_plugin = SQLAlchemyInitPlugin(config=sqlalchemy_config)
 
 
-def app_exception_handler(request: Request, exc: HTTPException) -> Response:
+def app_exception_handler(request: Request, exc: HTTPException) -> Response:  # type: ignore
     return Response(
         content={
             "error": "server error",

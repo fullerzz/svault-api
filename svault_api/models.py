@@ -38,7 +38,7 @@ class UserFileModel(UUIDBase):
 class UserFile(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID | None  # noqa: A003
+    id: uuid.UUID | None
     filename: str
     bucket_name: str
     key: str
